@@ -163,10 +163,7 @@ def create_vocabulary(
         dict: Response from the create_vocabulary API call.
     """
     try:
-        vocab_args = {
-            "VocabularyName": vocabulary_name,
-            "LanguageCode": language_code,
-        }
+        vocab_args = {"VocabularyName": vocabulary_name, "LanguageCode": language_code}
         if phrases is not None:
             vocab_args["Phrases"] = phrases
         elif table_uri is not None:
@@ -174,11 +171,9 @@ def create_vocabulary(
         response = transcribe_client.create_vocabulary(**vocab_args)
         logging.info("Created custom vocabulary %s.", response["VocabularyName"])
     except ClientError:
-        logging.exception(("Couldn't create custom vocabulary %s.", vocabulary_name))
+        logging.exception("Couldn't create custom vocabulary %s.", vocabulary_name)
         raise
-    else:
-        return response
-
+    
 
 def get_vocabulary(vocabulary_name: str, transcribe_client) -> dict:
     """
@@ -189,23 +184,28 @@ def get_vocabulary(vocabulary_name: str, transcribe_client) -> dict:
     Returns:
         dict: Information about the vocabulary.
     """
+    
     try:
-        max_tries = 60
-        while max_tries > 60:
-            max_tries -= 1
-            response = transcribe_client.get_vocabulary(VocabularyName=vocabulary_name)
-            job_status = response["VocabularyState"]["TranscriptionJobStatus"]
-            if job_status == "READY":
-                break
-            else:
-                time.sleep(10)
-        logging.info(f'Got vocabulary {response["VocabularyName"]}')
+        response = transcribe_client.get_vocabulary(VocabularyName=vocabulary_name)
+        logging.info("Got vocabulary %s.", response["VocabularyName"])
     except ClientError:
-        logging.exception(f"Couldn't get vocabulary {vocabulary_name}")
+        logging.exception("Couldn't get vocabulary %s.", vocabulary_name)
         raise
     else:
-        return response
-
+        max_tries = 60
+        while max_tries > 0:
+            max_tries -= 1
+            response = transcribe_client.get_vocabulary(VocabularyName=vocabulary_name)
+            job_status = response["VocabularyState"]
+            logging.info("Got vocabulary %s.", response["VocabularyName"])
+            if job_status == "READY":
+                print('Vocabulary ready.')
+                break
+            elif job_status == 'FAILED':
+                raise Exception("Vocabulary processing failed")
+            else:
+                time.sleep(10)
+        
 
 def transcribe_file(
     job_name: str,
@@ -244,16 +244,14 @@ def transcribe_file(
         transcribe_client.start_transcription_job(**job_args)
     except ClientError as e:
         logging.error(e)
-
-    max_tries = 60
-    while max_tries > 60:
-        max_tries -= 1
-        job = transcribe_client.get_transcription_job(TranscriptionJobName=job_name)
-        job_status = job["TranscriptionJob"]["TranscriptionJobStatus"]
-        if job_status in ["COMPLETED", "FAILED"]:
-            break
-        else:
-            time.sleep(10)
+    else:
+        while True:
+            job = transcribe_client.get_transcription_job(TranscriptionJobName=job_name)
+            job_status = job["TranscriptionJob"]["TranscriptionJobStatus"]
+            if job_status in ["COMPLETED", "FAILED"]:
+                break
+            else:
+                time.sleep(10)
 
 
 def transcribe_folder(
