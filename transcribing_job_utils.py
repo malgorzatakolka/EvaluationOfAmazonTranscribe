@@ -169,10 +169,9 @@ def create_vocabulary(
         elif table_uri is not None:
             vocab_args["VocabularyFileUri"] = table_uri
         response = transcribe_client.create_vocabulary(**vocab_args)
-        logging.info("Created custom vocabulary %s.", response["VocabularyName"])
-    except ClientError:
-        logging.exception("Couldn't create custom vocabulary %s.", vocabulary_name)
-        raise
+        print("Created custom vocabulary")
+    except ClientError as e:
+        logging.error(e)
     
 
 def get_vocabulary(vocabulary_name: str, transcribe_client) -> dict:
@@ -192,17 +191,14 @@ def get_vocabulary(vocabulary_name: str, transcribe_client) -> dict:
         logging.exception("Couldn't get vocabulary %s.", vocabulary_name)
         raise
     else:
-        max_tries = 60
-        while max_tries > 0:
-            max_tries -= 1
+        while True:
             response = transcribe_client.get_vocabulary(VocabularyName=vocabulary_name)
             job_status = response["VocabularyState"]
-            logging.info("Got vocabulary %s.", response["VocabularyName"])
             if job_status == "READY":
                 print('Vocabulary ready.')
                 break
             elif job_status == 'FAILED':
-                raise Exception("Vocabulary processing failed")
+                raise Exception("Vocabulary processing failed.")
             else:
                 time.sleep(10)
         
